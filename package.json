@@ -6,21 +6,31 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:data": "tsx scripts/test-data.ts",
+    "test:embedding": "tsx scripts/test-embedding.ts",
+    "test:retrieval": "tsx scripts/test-retrieval.ts",
+    "test:chat": "tsx scripts/test-chat.ts",
+    "ingest": "tsx scripts/ingest.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.1",
+    "@xenova/transformers": "^2.17.2",
     "next": "16.4.6",
+    "papaparse": "^5.7.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
