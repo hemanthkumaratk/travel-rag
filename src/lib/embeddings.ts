@@ -1,42 +1,89 @@
-import { pipeline, env, type FeatureExtractionPipeline } from "@xenova/transformers";
+import { GoogleGenAI } from "@google/genai";
 
-// Vercel's serverless runtime lacks libonnxruntime.so. Force the WASM backend
-// before any pipeline is created so the native binary is never requested.
-// Casts below: @xenova/transformers 2.17.2 omits these from its type
-// definitions. `?.` keeps it safe because this build has no setPriority.
-type BackendsWithPriority = {
-  onnx: typeof env.backends.onnx;
-  tfjs: object;
-  setPriority?: (order: string[]) => void;
-};
-(env.backends as BackendsWithPriority).setPriority?.(["wasm", "cpu"]);
-env.backends.onnx.wasm.numThreads = 1;
+const MODEL_ID = "gemini-embedding-001";
+const EMBEDDING_DIMENSION = 768;
 
-const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+type TaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 
-// The installed types have no `device` option, though the runtime accepts it.
-type PipelineOptions = NonNullable<Parameters<typeof pipeline>[2]>;
+let client: GoogleGenAI | null = null;
 
-// The pipeline loads the model on first use, so create it once and reuse it.
-let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
+function getClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
 
-function getExtractor(): Promise<FeatureExtractionPipeline> {
-  if (!extractorPromise) {
-    extractorPromise = pipeline("feature-extraction", MODEL_ID, {
-      device: "cpu",
-    } as unknown as PipelineOptions);
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY is not set. Add GEMINI_API_KEY to .env.local (or to the Vercel project env vars).",
+    );
   }
 
-  return extractorPromise;
+  if (!client) {
+    client = new GoogleGenAI({ apiKey });
+  }
+
+  return client;
 }
 
-/**
- * Turns a piece of text into a 384-dimensional embedding vector using a local
- * MiniLM model (no API calls).
- */
-export async function getEmbedding(text: string): Promise<number[]> {
-  const extractor = await getExtractor();
-  const output = await extractor(text, { pooling: "mean", normalize: true });
+/** The SDK reports HTTP failures as a JSON string; surface the readable part. */
+function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
 
-  return Array.from(output.data);
+  try {
+    const parsed = JSON.parse(message) as { error?: { message?: string; status?: string } };
+    if (parsed.error?.message) {
+      return `${parsed.error.message}${parsed.error.status ? ` (${parsed.error.status})` : ""}`;
+    }
+  } catch {
+    // Not JSON: keep the original message.
+  }
+
+  return message;
+}
+
+async function embed(text: string, taskType: TaskType): Promise<number[]> {
+  if (!text.trim()) {
+    throw new Error("Cannot embed empty text.");
+  }
+
+  // Resolved outside the try so a missing key is reported as-is, not wrapped.
+  const ai = getClient();
+
+  let values: number[] | undefined;
+
+  try {
+    const response = await ai.models.embedContent({
+      model: MODEL_ID,
+      contents: text,
+      config: {
+        taskType,
+        outputDimensionality: EMBEDDING_DIMENSION,
+      },
+    });
+
+    values = response.embeddings?.[0]?.values;
+  } catch (error) {
+    throw new Error(`Gemini embedding request (${taskType}) failed: ${describeError(error)}`);
+  }
+
+  if (!values || values.length === 0) {
+    throw new Error("Gemini returned no embedding values.");
+  }
+
+  if (values.length !== EMBEDDING_DIMENSION) {
+    throw new Error(
+      `Gemini returned a ${values.length}-dimensional embedding, expected ${EMBEDDING_DIMENSION}. ` +
+        `The movies.embedding column must be vector(${EMBEDDING_DIMENSION}).`,
+    );
+  }
+
+  return values;
+}
+
+/** Embedding for a stored document (movies.embedding). */
+export function getEmbedding(text: string): Promise<number[]> {
+  return embed(text, "RETRIEVAL_DOCUMENT");
+}
+
+/** Embedding for a user query; must match the dimension of getEmbedding. */
+export function getQueryEmbedding(text: string): Promise<number[]> {
+  return embed(text, "RETRIEVAL_QUERY");
 }

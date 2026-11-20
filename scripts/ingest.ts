@@ -58,6 +58,25 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Reads --limit=N (or --limit N) from the CLI; null when the flag is absent. */
+function parseLimit(argv: string[]): number | null {
+  const index = argv.findIndex((arg) => arg === "--limit" || arg.startsWith("--limit="));
+
+  if (index === -1) {
+    return null;
+  }
+
+  const flag = argv[index];
+  const raw = flag.includes("=") ? flag.slice(flag.indexOf("=") + 1) : argv[index + 1];
+  const limit = Number(raw);
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error(`Invalid --limit value: ${raw ?? "(missing)"}. Expected a positive integer.`);
+  }
+
+  return limit;
+}
+
 async function main() {
   let csv: string;
 
@@ -70,7 +89,7 @@ async function main() {
     return;
   }
 
-  const { data: rows, errors } = Papa.parse<MovieCsvRow>(csv, {
+  const { data: parsedRows, errors } = Papa.parse<MovieCsvRow>(csv, {
     header: true,
     skipEmptyLines: true,
   });
@@ -79,7 +98,23 @@ async function main() {
     console.warn(`CSV parse warnings: ${errors.length} (continuing)`);
   }
 
-  console.log(`Parsed ${rows.length} rows from ${path.basename(CSV_PATH)}\n`);
+  console.log(`Parsed ${parsedRows.length} rows from ${path.basename(CSV_PATH)}\n`);
+
+  let limit: number | null;
+
+  try {
+    limit = parseLimit(process.argv.slice(2));
+  } catch (error) {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+    return;
+  }
+
+  const rows = limit === null ? parsedRows : parsedRows.slice(0, limit);
+
+  if (limit !== null) {
+    console.log(`Limiting to ${limit} rows for test run\n`);
+  }
 
   // Ingestion runs server-side with the service role key, which bypasses RLS.
   // Never expose this key to the browser or prefix it with NEXT_PUBLIC_.
@@ -131,6 +166,8 @@ async function main() {
       let embedding: number[];
 
       try {
+        // Document side: RETRIEVAL_DOCUMENT, 768 dimensions, matching the
+        // movies.embedding vector(768) column.
         embedding = await getEmbedding(buildMovieText(row));
       } catch (error) {
         failed += 1;

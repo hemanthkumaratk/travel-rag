@@ -1,4 +1,4 @@
-import { getEmbedding } from "./embeddings";
+import { getQueryEmbedding } from "./embeddings";
 import { supabase } from "./supabase";
 
 export type MovieMatch = {
@@ -15,7 +15,7 @@ export type MovieMatch = {
 const SIMILARITY_THRESHOLD = 0.5;
 
 export async function retrieveMovies(query: string, matchCount = 5): Promise<MovieMatch[]> {
-  const embedding = await getEmbedding(query);
+  const embedding = await getQueryEmbedding(query);
 
   // Over-fetch so that weak matches and duplicate titles can be dropped
   // without returning fewer than matchCount when possible.

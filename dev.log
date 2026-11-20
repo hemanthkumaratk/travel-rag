@@ -24,3 +24,7 @@
  POST /api/chat 200 in 2.1s (next.js: 3ms, application-code: 2.1s)
  POST /api/chat 200 in 1526ms (next.js: 3ms, application-code: 1523ms)
  POST /api/chat 200 in 2.2s (next.js: 3ms, application-code: 2.2s)
+ POST /api/chat 200 in 2.5s (next.js: 3ms, application-code: 2.5s)
+ POST /api/chat 200 in 2.2s (next.js: 1.6ms, application-code: 2.2s)
+ POST /api/chat 200 in 3.4s (next.js: 3ms, application-code: 3.4s)
+ POST /api/chat 200 in 2.5s (next.js: 3ms, application-code: 2.5s)

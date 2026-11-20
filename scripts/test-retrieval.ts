@@ -19,6 +19,17 @@ const QUERIES = [
 
 async function main() {
   const { retrieveMovies } = await import("@/lib/rag");
+  const { getQueryEmbedding } = await import("@/lib/embeddings");
+
+  try {
+    const probe = await getQueryEmbedding(QUERIES[0]);
+    console.log(`Query embedding dimension: ${probe.length}`);
+  } catch (error) {
+    console.error("  query embedding failed:");
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+    return;
+  }
 
   for (const query of QUERIES) {
     console.log(`\nQuery: "${query}"`);
