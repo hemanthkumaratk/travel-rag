@@ -1,4 +1,9 @@
-import { pipeline, type FeatureExtractionPipeline } from "@xenova/transformers";
+import { pipeline, env, type FeatureExtractionPipeline } from "@xenova/transformers";
+
+// Vercel's serverless runtime lacks libonnxruntime.so. Force the WASM backend
+// before any pipeline is created so the native binary is never requested.
+env.backends.setPriority(["wasm", "cpu"]);
+env.backends.onnx.wasm.numThreads = 1;
 
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 
@@ -7,7 +12,7 @@ let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 
 function getExtractor(): Promise<FeatureExtractionPipeline> {
   if (!extractorPromise) {
-    extractorPromise = pipeline("feature-extraction", MODEL_ID);
+    extractorPromise = pipeline("feature-extraction", MODEL_ID, { device: "cpu" });
   }
 
   return extractorPromise;
