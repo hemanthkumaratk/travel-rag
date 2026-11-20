@@ -12,13 +12,13 @@ if (existsSync(ENV_PATH) && loadEnvFile) {
 }
 
 const QUERIES = [
-  "Mohanlal action movie",
-  "Drama film about family",
-  "Rajinikanth",
+  "Best beaches in Kerala",
+  "Heritage sites in Rajasthan",
+  "Hill stations for trekking",
 ];
 
 async function main() {
-  const { retrieveMovies } = await import("@/lib/rag");
+  const { retrieveDestinations } = await import("@/lib/rag");
   const { getQueryEmbedding } = await import("@/lib/embeddings");
 
   try {
@@ -37,7 +37,7 @@ async function main() {
     let results;
 
     try {
-      results = await retrieveMovies(query, 5);
+      results = await retrieveDestinations(query, 5);
     } catch (error) {
       console.error("  retrieval failed:");
       console.error(error);
@@ -50,9 +50,9 @@ async function main() {
       continue;
     }
 
-    results.forEach((movie, index) => {
+    results.forEach((destination, index) => {
       console.log(
-        `  ${index + 1}. ${movie.title} — similarity ${movie.similarity.toFixed(3)}`,
+        `  ${index + 1}. ${destination.title} — similarity ${destination.similarity.toFixed(3)}`,
       );
     });
   }

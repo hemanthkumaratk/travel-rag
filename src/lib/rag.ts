@@ -1,50 +1,78 @@
 import { getQueryEmbedding } from "./embeddings";
 import { supabase } from "./supabase";
 
-export type MovieMatch = {
+export type DestinationMatch = {
   id: number;
   title: string;
   metadata: Record<string, unknown>;
   similarity: number;
 };
 
+/** Shape returned by the match_destinations RPC. */
+type DestinationRow = {
+  id: number;
+  title?: string | null;
+  destination?: string | null;
+  metadata?: Record<string, unknown> | null;
+  similarity: number;
+};
+
 /**
- * Embeds the natural-language query and returns the closest movies from
- * Supabase via the match_movies RPC.
+ * Embeds the natural-language query and returns the closest destinations from
+ * Supabase via the match_destinations RPC.
  */
 const SIMILARITY_THRESHOLD = 0.5;
 
-export async function retrieveMovies(query: string, matchCount = 5): Promise<MovieMatch[]> {
+function displayTitle(row: DestinationRow): string {
+  const metadataDestination = row.metadata?.destination;
+
+  if (typeof metadataDestination === "string" && metadataDestination.trim()) {
+    return metadataDestination.trim();
+  }
+
+  return (row.title ?? row.destination ?? "").trim();
+}
+
+export async function retrieveDestinations(
+  query: string,
+  matchCount = 5,
+): Promise<DestinationMatch[]> {
   const embedding = await getQueryEmbedding(query);
 
-  // Over-fetch so that weak matches and duplicate titles can be dropped
+  // Over-fetch so that weak matches and duplicate destinations can be dropped
   // without returning fewer than matchCount when possible.
-  const { data, error } = await supabase.rpc("match_movies", {
+  const { data, error } = await supabase.rpc("match_destinations", {
     query_embedding: embedding,
     match_count: matchCount * 2,
   });
 
   if (error) {
-    throw new Error(`match_movies RPC failed: ${error.message}`);
+    throw new Error(`match_destinations RPC failed: ${error.message}`);
   }
 
-  const matches = (data ?? []) as MovieMatch[];
+  const matches = (data ?? []) as DestinationRow[];
   const seenTitles = new Set<string>();
-  const results: MovieMatch[] = [];
+  const results: DestinationMatch[] = [];
 
   for (const match of matches) {
     if (match.similarity < SIMILARITY_THRESHOLD) {
       continue;
     }
 
-    const titleKey = match.title.trim().toLowerCase();
+    const title = displayTitle(match);
+    const titleKey = title.toLowerCase();
 
-    if (seenTitles.has(titleKey)) {
+    if (!titleKey || seenTitles.has(titleKey)) {
       continue;
     }
 
     seenTitles.add(titleKey);
-    results.push(match);
+    results.push({
+      id: match.id,
+      title,
+      metadata: match.metadata ?? {},
+      similarity: match.similarity,
+    });
 
     if (results.length === matchCount) {
       break;

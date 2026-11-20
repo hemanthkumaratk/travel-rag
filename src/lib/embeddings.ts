@@ -71,14 +71,14 @@ async function embed(text: string, taskType: TaskType): Promise<number[]> {
   if (values.length !== EMBEDDING_DIMENSION) {
     throw new Error(
       `Gemini returned a ${values.length}-dimensional embedding, expected ${EMBEDDING_DIMENSION}. ` +
-        `The movies.embedding column must be vector(${EMBEDDING_DIMENSION}).`,
+        `The destinations.embedding column must be vector(${EMBEDDING_DIMENSION}).`,
     );
   }
 
   return values;
 }
 
-/** Embedding for a stored document (movies.embedding). */
+/** Embedding for a stored document (destinations.embedding). */
 export function getEmbedding(text: string): Promise<number[]> {
   return embed(text, "RETRIEVAL_DOCUMENT");
 }

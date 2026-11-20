@@ -13,44 +13,69 @@ if (existsSync(ENV_PATH) && loadEnvFile) {
   loadEnvFile(ENV_PATH);
 }
 
-const CSV_PATH = path.join(process.cwd(), "archive", "indian_cinema_dataset.csv");
+const CSV_PATH = path.join(
+  process.cwd(),
+  "archive",
+  "india_travel_tourism_rag_dataset.csv",
+);
 const BATCH_SIZE = 20;
+const BOM = "\uFEFF";
 
-type MovieCsvRow = Record<string, string>;
+type DestinationCsvRow = Record<string, string>;
 
-type MovieInsert = {
-  wikidata_id: string | null;
-  title: string;
+type DestinationInsert = {
+  record_id: string | null;
+  destination: string;
   metadata: {
-    year: string;
-    genres: string;
-    directors: string;
-    cast: string;
-    languages: string;
-    imdb_id: string;
-    wikidata_url: string;
+    destination: string;
+    state_or_union_territory: string;
+    destination_type: string;
+    major_attractions: string;
+    recommended_visit_season: string;
+    travel_tips: string;
+    travel_interests: string;
   };
   embedding: number[];
 };
 
-function buildMovieText(row: MovieCsvRow): string {
-  const year = (row.release_date ?? "").slice(0, 4);
-  const genres = (row.genres ?? "").replace(/,/g, " ");
-  const directors = (row.directors ?? "").replace(/,/g, " ");
-  const cast = (row.cast ?? "").replace(/,/g, " ");
-
-  return `Title: ${row.title}. Year: ${year}. Genres: ${genres}. Director: ${directors}. Cast: ${cast}. Language: ${row.languages}.`;
+function field(row: DestinationCsvRow, key: string): string {
+  return (row[key] ?? "").trim();
 }
 
-function buildMetadata(row: MovieCsvRow): MovieInsert["metadata"] {
+/** The exported CSV starts with a UTF-8 BOM before the record_id header. */
+function stripBom(csv: string): string {
+  return csv.startsWith(BOM) ? csv.slice(BOM.length) : csv;
+}
+
+function buildDestinationText(row: DestinationCsvRow): string {
+  const parts: Array<[string, string]> = [
+    ["Destination", field(row, "destination")],
+    ["State", field(row, "state_or_union_territory")],
+    ["Type", field(row, "destination_type")],
+    ["Attractions", field(row, "major_attractions")],
+    ["Best season", field(row, "recommended_visit_season")],
+    ["Description", field(row, "destination_description")],
+    ["Tips", field(row, "travel_tips")],
+    ["Interests", field(row, "travel_interests")],
+  ];
+
+  const sentences = parts
+    .filter(([, value]) => value)
+    // Values often end in a full stop; the join adds the separator instead.
+    .map(([label, value]) => `${label}: ${value.replace(/\.\s*$/, "")}`);
+
+  return `${sentences.join(". ")}.`;
+}
+
+function buildMetadata(row: DestinationCsvRow): DestinationInsert["metadata"] {
   return {
-    year: (row.release_date ?? "").slice(0, 4),
-    genres: row.genres ?? "",
-    directors: row.directors ?? "",
-    cast: row.cast ?? "",
-    languages: row.languages ?? "",
-    imdb_id: row.imdb_id ?? "",
-    wikidata_url: row.wikidata_url ?? "",
+    destination: field(row, "destination"),
+    state_or_union_territory: field(row, "state_or_union_territory"),
+    destination_type: field(row, "destination_type"),
+    major_attractions: field(row, "major_attractions"),
+    recommended_visit_season: field(row, "recommended_visit_season"),
+    travel_tips: field(row, "travel_tips"),
+    travel_interests: field(row, "travel_interests"),
   };
 }
 
@@ -81,7 +106,7 @@ async function main() {
   let csv: string;
 
   try {
-    csv = readFileSync(CSV_PATH, "utf8");
+    csv = stripBom(readFileSync(CSV_PATH, "utf8"));
   } catch {
     console.error(`Could not read ${CSV_PATH}`);
     console.error("Run this from the project root and make sure archive/ is there.");
@@ -89,7 +114,7 @@ async function main() {
     return;
   }
 
-  const { data: parsedRows, errors } = Papa.parse<MovieCsvRow>(csv, {
+  const { data: parsedRows, errors } = Papa.parse<DestinationCsvRow>(csv, {
     header: true,
     skipEmptyLines: true,
   });
@@ -133,10 +158,10 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { error: preflightError } = await supabase.from("movies").select("id").limit(1);
+  const { error: preflightError } = await supabase.from("destinations").select("id").limit(1);
 
   if (preflightError) {
-    console.error(`Cannot query the movies table: ${preflightError.message}`);
+    console.error(`Cannot query the destinations table: ${preflightError.message}`);
     console.error(
       "Check NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env.local and the table name.",
     );
@@ -147,18 +172,18 @@ async function main() {
   let inserted = 0;
   let skipped = 0;
   let failed = 0;
-  const firstInsertedTitles: string[] = [];
+  const firstInsertedDestinations: string[] = [];
   const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
 
   for (let start = 0; start < rows.length; start += BATCH_SIZE) {
     const batchNumber = Math.floor(start / BATCH_SIZE) + 1;
     const batchRows = rows.slice(start, start + BATCH_SIZE);
-    const payloads: MovieInsert[] = [];
+    const payloads: DestinationInsert[] = [];
 
     for (const row of batchRows) {
-      const title = (row.title ?? "").trim();
+      const destination = field(row, "destination");
 
-      if (!title) {
+      if (!destination) {
         skipped += 1;
         continue;
       }
@@ -167,17 +192,17 @@ async function main() {
 
       try {
         // Document side: RETRIEVAL_DOCUMENT, 768 dimensions, matching the
-        // movies.embedding vector(768) column.
-        embedding = await getEmbedding(buildMovieText(row));
+        // destinations.embedding vector(768) column.
+        embedding = await getEmbedding(buildDestinationText(row));
       } catch (error) {
         failed += 1;
-        console.error(`Embedding failed for "${title}": ${errorMessage(error)}`);
+        console.error(`Embedding failed for "${destination}": ${errorMessage(error)}`);
         continue;
       }
 
       payloads.push({
-        wikidata_id: row.wikidata_id?.trim() || null,
-        title,
+        record_id: field(row, "record_id") || null,
+        destination,
         metadata: buildMetadata(row),
         embedding,
       });
@@ -185,15 +210,15 @@ async function main() {
 
     if (payloads.length > 0) {
       const { error } = await supabase
-        .from("movies")
-        .upsert(payloads, { onConflict: "wikidata_id" })
-        .select("title");
+        .from("destinations")
+        .upsert(payloads, { onConflict: "record_id" })
+        .select("destination");
 
       if (!error) {
         inserted += payloads.length;
         for (const payload of payloads) {
-          if (firstInsertedTitles.length < 2) {
-            firstInsertedTitles.push(payload.title);
+          if (firstInsertedDestinations.length < 2) {
+            firstInsertedDestinations.push(payload.destination);
           }
         }
       } else {
@@ -203,17 +228,17 @@ async function main() {
 
         for (const payload of payloads) {
           const { error: rowError } = await supabase
-            .from("movies")
-            .upsert(payload, { onConflict: "wikidata_id" })
-            .select("title");
+            .from("destinations")
+            .upsert(payload, { onConflict: "record_id" })
+            .select("destination");
 
           if (rowError) {
             failed += 1;
-            console.error(`  "${payload.title}" failed: ${rowError.message}`);
+            console.error(`  "${payload.destination}" failed: ${rowError.message}`);
           } else {
             inserted += 1;
-            if (firstInsertedTitles.length < 2) {
-              firstInsertedTitles.push(payload.title);
+            if (firstInsertedDestinations.length < 2) {
+              firstInsertedDestinations.push(payload.destination);
             }
           }
         }
@@ -226,7 +251,7 @@ async function main() {
 
     if (batchNumber === 1 && inserted === 0 && failed > 0) {
       console.error(
-        "\nAborting: every insert in the first batch failed. Check the service role key and that wikidata_id has a unique constraint.",
+        "\nAborting: every insert in the first batch failed. Check the service role key and that record_id has a unique constraint.",
       );
       process.exitCode = 1;
       break;
@@ -236,10 +261,10 @@ async function main() {
   console.log("\n-------- Ingestion summary --------");
   console.log(`Total rows in CSV: ${rows.length}`);
   console.log(`Inserted: ${inserted}`);
-  console.log(`Skipped (empty title): ${skipped}`);
+  console.log(`Skipped (empty destination): ${skipped}`);
   console.log(`Failed: ${failed}`);
   console.log(
-    `First inserted titles: ${firstInsertedTitles.length > 0 ? firstInsertedTitles.join(", ") : "(none)"}`,
+    `First inserted destinations: ${firstInsertedDestinations.length > 0 ? firstInsertedDestinations.join(", ") : "(none)"}`,
   );
 }
 

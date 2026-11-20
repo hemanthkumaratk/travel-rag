@@ -12,19 +12,19 @@ if (existsSync(ENV_PATH) && loadEnvFile) {
 }
 
 const QUERIES = [
-  "Recommend a Rajinikanth movie and tell me about it",
-  "Tell me about Shah Rukh Khan movies",
+  "Recommend a beach destination in Kerala",
+  "Tell me about a heritage place in Rajasthan",
 ];
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "openai/gpt-oss-120b";
 const SYSTEM_PROMPT =
-  "You are a helpful Indian cinema assistant. Answer using ONLY the movie context provided.\n" +
+  "You are a helpful India travel assistant. Answer using ONLY the destination context provided.\n" +
   "Rules:\n" +
   "- Give a medium-length answer: 3 to 5 sentences. Be informative but not verbose.\n" +
-  "- If the context contains movies relevant to the question, recommend 1-2 and describe them (title, year, genre, director, cast if available).\n" +
-  "- If the context does NOT contain enough information to answer (e.g., the user asks about an actor/genre not in the data), respond with: 'I couldn't find that in the dataset. The Indian cinema data I have doesn't include [the specific thing].' Then, suggest 2-3 popular actors, directors, or genres that DO appear in the provided context, as alternatives the user could ask about.\n" +
-  "- Never invent movies, actors, or facts not in the context.";
+  "- If the context contains destinations relevant to the question, recommend 1-2 and describe them (destination, state, type, attractions, best season if available).\n" +
+  "- If the context does NOT contain enough information to answer (e.g., the user asks about a state, trip type, or season not in the data), respond with: 'I couldn't find that in the dataset. The India travel data I have doesn't include [the specific thing].' Then, suggest 2-3 destinations, states, or destination types that DO appear in the provided context, as alternatives the user could ask about.\n" +
+  "- Never invent destinations, attractions, or facts not in the context.";
 
 function metadataField(metadata: Record<string, unknown>, key: string): string {
   const value = metadata?.[key];
@@ -37,7 +37,7 @@ function metadataField(metadata: Record<string, unknown>, key: string): string {
 }
 
 async function main() {
-  const { retrieveMovies } = await import("@/lib/rag");
+  const { retrieveDestinations } = await import("@/lib/rag");
 
   const groqApiKey = process.env.GROQ_API_KEY;
 
@@ -50,10 +50,10 @@ async function main() {
   for (const question of QUERIES) {
     console.log(`\n========== Question: "${question}" ==========\n`);
 
-    let movies;
+    let destinations;
 
     try {
-      movies = await retrieveMovies(question, 5);
+      destinations = await retrieveDestinations(question, 5);
     } catch (error) {
       console.error("Retrieval failed:");
       console.error(error);
@@ -61,34 +61,33 @@ async function main() {
       return;
     }
 
-    console.log(`Retrieved ${movies.length} movies:`);
+    console.log(`Retrieved ${destinations.length} destinations:`);
 
-    if (movies.length === 0) {
+    if (destinations.length === 0) {
       console.log("  (no results)");
     }
 
-    movies.forEach((movie, index) => {
+    destinations.forEach((destination, index) => {
       console.log(
-        `  ${index + 1}. ${movie.title} — similarity ${movie.similarity.toFixed(3)}`,
+        `  ${index + 1}. ${destination.title} — similarity ${destination.similarity.toFixed(3)}`,
       );
     });
 
     const context =
-      movies.length === 0
-        ? "No movie context available."
-        : movies
-            .map((movie, index) => {
-              const metadata = movie.metadata ?? {};
-              const year = metadataField(metadata, "year");
-              const lines = [
-                `${index + 1}. ${movie.title}${year ? ` (${year})` : ""}`,
-              ];
+      destinations.length === 0
+        ? "No destination context available."
+        : destinations
+            .map((destination, index) => {
+              const metadata = destination.metadata ?? {};
+              const lines = [`${index + 1}. ${destination.title}`];
 
               const fields: Array<[string, string]> = [
-                ["Genres", metadataField(metadata, "genres")],
-                ["Director", metadataField(metadata, "directors")],
-                ["Cast", metadataField(metadata, "cast")],
-                ["Language", metadataField(metadata, "languages")],
+                ["State", metadataField(metadata, "state_or_union_territory")],
+                ["Type", metadataField(metadata, "destination_type")],
+                ["Attractions", metadataField(metadata, "major_attractions")],
+                ["Best season", metadataField(metadata, "recommended_visit_season")],
+                ["Description", metadataField(metadata, "destination_description")],
+                ["Tips", metadataField(metadata, "travel_tips")],
               ];
 
               for (const [label, value] of fields) {

@@ -20,10 +20,10 @@ type ChatResponse = {
 };
 
 const SUGGESTIONS = [
-  "Recommend a Rajinikanth movie",
-  "Tell me about a Malayalam drama",
-  "List some Tamil comedy films",
-  "Movies featuring Mohanlal",
+  "Best beaches in Kerala",
+  "Heritage sites in Rajasthan",
+  "Hill stations for trekking",
+  "Pilgrimage destinations in Tamil Nadu",
 ];
 
 export default function Home() {
@@ -131,9 +131,11 @@ export default function Home() {
       <header className="shrink-0 border-b border-white/5 bg-slate-950/60 backdrop-blur">
         <div className="mx-auto w-full max-w-[800px] px-4 py-4 sm:px-6 sm:py-5">
           <h1 className="bg-gradient-to-r from-indigo-300 via-violet-200 to-teal-200 bg-clip-text text-xl font-semibold tracking-tight text-transparent sm:text-2xl">
-            Indian Cinema RAG
+            India Travel RAG
           </h1>
-          <p className="mt-1 text-sm text-slate-400">Ask about Indian movies</p>
+          <p className="mt-1 text-sm text-slate-400">
+            Ask about destinations, seasons, and travel tips
+          </p>
         </div>
       </header>
 
@@ -207,8 +209,8 @@ export default function Home() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               disabled={loading}
-              placeholder="Ask about Indian cinema…"
-              aria-label="Ask about Indian cinema"
+              placeholder="Ask about destinations, seasons, and travel tips…"
+              aria-label="Ask about destinations, seasons, and travel tips"
               className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 transition focus:border-indigo-400/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60"
             />
             <button
@@ -221,7 +223,7 @@ export default function Home() {
           </form>
 
           <p className="mt-2 text-center text-[11px] text-slate-500">
-            Answers are drawn from the Indian cinema dataset.
+            Answers are drawn from the India travel dataset.
           </p>
         </div>
       </div>

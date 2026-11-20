@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 
-const CSV_PATH = path.join(process.cwd(), "archive", "indian_cinema_dataset.csv");
+const CSV_PATH = path.join(
+  process.cwd(),
+  "archive",
+  "india_travel_tourism_rag_dataset.csv",
+);
 const ROWS_TO_READ = 5;
 const ROWS_TO_PRINT = 2;
 

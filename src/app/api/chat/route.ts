@@ -1,15 +1,15 @@
-import { retrieveMovies, type MovieMatch } from "@/lib/rag";
+import { retrieveDestinations, type DestinationMatch } from "@/lib/rag";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "openai/gpt-oss-120b";
 
 const SYSTEM_PROMPT =
-  "You are a helpful Indian cinema assistant. Answer using ONLY the movie context provided.\n" +
+  "You are a helpful India travel assistant. Answer using ONLY the destination context provided.\n" +
   "Rules:\n" +
   "- Give a medium-length answer: 3 to 5 sentences. Be informative but not verbose.\n" +
-  "- If the context contains movies relevant to the question, recommend 1-2 and describe them (title, year, genre, director, cast if available).\n" +
-  "- If the context does NOT contain enough information to answer (e.g., the user asks about an actor/genre not in the data), respond with: 'I couldn't find that in the dataset. The Indian cinema data I have doesn't include [the specific thing].' Then, suggest 2-3 popular actors, directors, or genres that DO appear in the provided context, as alternatives the user could ask about.\n" +
-  "- Never invent movies, actors, or facts not in the context.";
+  "- If the context contains destinations relevant to the question, recommend 1-2 and describe them (destination, state, type, attractions, best season if available).\n" +
+  "- If the context does NOT contain enough information to answer (e.g., the user asks about a state, trip type, or season not in the data), respond with: 'I couldn't find that in the dataset. The India travel data I have doesn't include [the specific thing].' Then, suggest 2-3 destinations, states, or destination types that DO appear in the provided context, as alternatives the user could ask about.\n" +
+  "- Never invent destinations, attractions, or facts not in the context.";
 
 function metadataField(metadata: Record<string, unknown>, key: string): string {
   const value = metadata?.[key];
@@ -21,22 +21,23 @@ function metadataField(metadata: Record<string, unknown>, key: string): string {
   return typeof value === "string" ? value.trim() : String(value);
 }
 
-function buildContext(movies: MovieMatch[]): string {
-  if (movies.length === 0) {
-    return "No movie context available.";
+function buildContext(destinations: DestinationMatch[]): string {
+  if (destinations.length === 0) {
+    return "No destination context available.";
   }
 
-  return movies
-    .map((movie, index) => {
-      const metadata = movie.metadata ?? {};
-      const year = metadataField(metadata, "year");
-      const lines = [`${index + 1}. ${movie.title}${year ? ` (${year})` : ""}`];
+  return destinations
+    .map((destination, index) => {
+      const metadata = destination.metadata ?? {};
+      const lines = [`${index + 1}. ${destination.title}`];
 
       const fields: Array<[string, string]> = [
-        ["Genres", metadataField(metadata, "genres")],
-        ["Director", metadataField(metadata, "directors")],
-        ["Cast", metadataField(metadata, "cast")],
-        ["Language", metadataField(metadata, "languages")],
+        ["State", metadataField(metadata, "state_or_union_territory")],
+        ["Type", metadataField(metadata, "destination_type")],
+        ["Attractions", metadataField(metadata, "major_attractions")],
+        ["Best season", metadataField(metadata, "recommended_visit_season")],
+        ["Description", metadataField(metadata, "destination_description")],
+        ["Tips", metadataField(metadata, "travel_tips")],
       ];
 
       for (const [label, value] of fields) {
@@ -77,21 +78,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "GROQ_API_KEY is not configured." }, { status: 500 });
   }
 
-  let movies: MovieMatch[];
+  let destinations: DestinationMatch[];
 
   try {
-    movies = await retrieveMovies(question.trim(), 5);
+    destinations = await retrieveDestinations(question.trim(), 5);
   } catch (error) {
     return Response.json(
       {
-        error: "Failed to retrieve movies.",
+        error: "Failed to retrieve destinations.",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
     );
   }
 
-  const context = buildContext(movies);
+  const context = buildContext(destinations);
 
   let groqResponse: Response;
 
@@ -152,9 +153,9 @@ export async function POST(request: Request) {
 
   return Response.json({
     answer,
-    sources: movies.map((movie) => ({
-      title: movie.title,
-      similarity: movie.similarity,
+    sources: destinations.map((destination) => ({
+      title: destination.title,
+      similarity: destination.similarity,
     })),
   });
 }
